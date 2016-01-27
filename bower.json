@@ -1,0 +1,22 @@
+{
+  "name": "js-hydro",
+  "authors": [
+    "Jeff Walker <walker.jeff.d@gmail.com>"
+  ],
+  "description": "",
+  "main": "",
+  "moduleType": [],
+  "license": "MIT",
+  "homepage": "",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "dat.gui": "*",
+    "d3": "~3.5.13"
+  }
+}
