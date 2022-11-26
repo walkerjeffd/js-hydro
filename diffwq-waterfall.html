@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>js-hydro</title>
+  <style>
+
+    svg {
+      font: 10px sans-serif;
+    }
+
+    .axis path, .axis line {
+      fill: none;
+      stroke: #000;
+      shape-rendering: crispEdges;
+    }
+
+    .line {
+      fill: none;
+      stroke: #000;
+      stroke-width: 1.5px;
+    }
+  </style>
+</head>
+<body>
+<p>Water Quality Differential Equation</p>
+<div id="chart"></div>
+<script src="bower_components/dat.gui/dat.gui.min.js"></script>
+<script src="bower_components/d3/d3.min.js"></script>
+<script>
+
+window.onload = function() {
+  var params = {
+    a: 3,
+    b: 2
+  };
+  var gui = new dat.GUI();
+  gui.add(params, 'a', 0, 10)
+    .onChange(function (value){
+      render(params);
+    });
+  gui.add(params, 'b', 0, 10)
+    .onChange(function (value){
+      render(params);
+    });
+  render(params);
+};
+
+var chart = waterfallChart();
+
+function render (params) {
+  var result = compute(params);
+
+  d3.select("#chart")
+    .datum(result)
+    .call(chart);
+}
+
+function compute (params) {
+  var a = params.a,
+      b = params.b;
+
+  // var load = d3.range(0, 1000, 1);
+
+  // var conc = load.map(function (L) {
+  //   return 0.368 * L/Z * 1 / (1 + 1 / Math.sqrt(p));
+  // })
+
+  // return d3.zip(load, conc);
+  return [
+    {label: 'a', value: a},
+    {label: 'b', value: a + 1},
+    {label: 'c', value: a - b},
+    {label: 'd', value: a + 1 - b + 2},
+    {label: 'e', value: a + 1 - b + 3}
+  ];
+}
+
+function waterfallChart() {
+  var margin = {top: 20, right: 20, bottom: 20, left: 40},
+      width = 400 - margin.left - margin.right,
+      height = 400 - margin.top - margin.bottom,
+      yValue = function(d) { return d; },
+      xDomain = [0, 1],
+      yDomain = [0, 1],
+      xScale= d3.scale.ordinal();
+      yScale = d3.scale.linear().range([height, 0]),
+      yAxis = d3.svg.axis().scale(yScale).orient("left"),
+      xAxis = d3.svg.axis().scale(xScale).orient("bottom"),
+      line = d3.svg.line().x(X).y(Y);
+
+  function chart(selection) {
+    selection.each(function(data) {
+      data.reduce(function(v, d) {
+        return d.value1 = (d.value0 = v) + d.value;
+      }, 0);
+
+      xScale.rangeRoundBands([0, width], .1)
+          .domain(data.map(function (d) { return d.label; }));
+
+      var yMax = d3.max(data.map(function (d) { return d.value1; })),
+          yMin = d3.min(data.map(function (d) { return d3.min([d.value0, d.value1]); }));
+
+      yScale.domain([yMin, yMax]);
+
+      // Select the svg element, if it exists.
+      var svg = d3.select(this).selectAll("svg").data([data]);
+
+      // Otherwise, create the skeletal chart.
+      var gEnter = svg.enter().append("svg").append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      gEnter.append("g").attr("class", "bars");
+      gEnter.append("g").attr("class", "lines");
+      gEnter.append("g").attr("class", "x axis")
+        .attr("transform", "translate(0," + height + ")")
+        .call(xAxis);
+      gEnter.append("g").attr("class", "y axis")
+        .call(yAxis);
+
+      // Update the outer dimensions.
+      svg .attr("width", width + margin.left + margin.right)
+          .attr("height", height + margin.top + margin.bottom);
+
+      // Update the inner dimensions.
+      var g = svg.select("g")
+          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      // Update the line path.
+      var bar = g.select(".bars")
+        .selectAll(".bar")
+        .data(data);
+
+      bar.enter()
+        .append("rect")
+        .attr("class", "bar");
+
+      var tieLines = data
+        .slice(0, data.length-1)
+        .map(function (d, i) {
+          return {
+            x1: xScale(d.label),
+            x2: xScale(data[i+1].label) + xScale.rangeBand(),
+            y1: yScale(d.value1),
+            y2: yScale(d.value1)
+          };
+        });
+
+      bar.attr("x", function(d, i) { return xScale(d.label); })
+        .attr("width", xScale.rangeBand())
+        .attr("y", function(d, i) {
+          var yTop = d.value0 < d.value1 ? d.value1 : d.value0;
+          return yScale(yTop + yScale.domain()[0]) + yScale(0) - height;
+        })
+        .attr("height", function(d, i) {
+          var barHeight = d.value0 < d.value1 ? yScale(d.value1 - d.value0 + yScale.domain()[0]) : yScale(d.value0-d.value1 + yScale.domain()[0]);
+          return height - barHeight;
+        })
+        .style("fill", function (d) {
+          return d.value0 < d.value1 ? 'steelblue': 'orangered';
+        });
+
+      tieLines.push({x1: 0, x2: width, y1: yScale(0), y2: yScale(0)});
+      var line = g.select(".lines")
+        .selectAll(".line")
+        .data(tieLines);
+
+      line.enter()
+        .append('line')
+        .attr('class', 'line')
+        .style('stroke', 'rgba(100, 100, 100, 1)')
+        .style('stroke-width', '2px');
+
+      line
+        .attr('x1', function (d) { return d.x1; })
+        .attr('x2', function (d) { return d.x2; })
+        .attr('y1', function (d) { return d.y1; })
+        .attr('y2', function (d) { return d.y2; });
+
+      line.exit().remove();
+
+      // Update the x-axis.
+      g.select(".x.axis")
+        .call(xAxis);
+
+      // Update the y-axis.
+      g.select(".y.axis")
+        .call(yAxis);
+    });
+  }
+
+  // The x-accessor for the path generator; xScale ∘ xValue.
+  function X(d) {
+    return xScale(xValue(d));
+  }
+
+  // The x-accessor for the path generator; yScale ∘ yValue.
+  function Y(d) {
+    return yScale(yValue(d));
+  }
+
+  chart.margin = function(_) {
+    if (!arguments.length) return margin;
+    margin = _;
+    return chart;
+  };
+
+  chart.width = function(_) {
+    if (!arguments.length) return width;
+    width = _;
+    return chart;
+  };
+
+  chart.height = function(_) {
+    if (!arguments.length) return height;
+    height = _;
+    return chart;
+  };
+
+  chart.x = function(_) {
+    if (!arguments.length) return xValue;
+    xValue = _;
+    return chart;
+  };
+
+  chart.y = function(_) {
+    if (!arguments.length) return yValue;
+    yValue = _;
+    return chart;
+  };
+
+  chart.yDomain = function(_) {
+    if (!arguments.length) return yDomain;
+    yDomain = _;
+    return chart;
+  };
+
+  return chart;
+}
+</script>
+</body>
+</html>
